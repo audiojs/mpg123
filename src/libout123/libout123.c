@@ -1173,8 +1173,13 @@ int attribute_align_arg out123_enc_byname(const char *name)
 	if(!name)
 		return OUT123_ERR;
 	for(i=0; i<KNOWN_ENCS; ++i) if(
+#ifndef HAVE_WINDOWS_H
 		!strcasecmp(encdesc[i].name, name)
 	||	!strcasecmp(encdesc[i].longname, name)
+#else
+		!stricmp(encdesc[i].name, name)
+	||	!stricmp(encdesc[i].longname, name)
+#endif
 	)
 		return encdesc[i].code;
 	return OUT123_ERR;
