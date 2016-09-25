@@ -1,15 +1,25 @@
 1.24.0
 ------
+TODO: looping and playlists, also printout of lists in control_generic
+      (avoid looping stuff there)
+TODO: Make coreaudio more robust (see bug 236)
 - libmpg123 version 43:
 -- Add flags MPG123_NO_PEEK_END and MPG123_FORCE_SEEKABLE, as suggested
    by Bent Bisballe Nyeng.
 - Avoid repeating genre in metadata printout for specifications like
   (144)Thrash Metal.
+- libout123/coreaudio:
+-- Use AudioComponents API on OSX >= 10.6 (thanks to Michael Weiser).
 
 1.23.7
 ------
-- Fix the bad RPM spec file (broken since out123 addition).
-- More out123_pause() in generic control mode.
+- Fix the bad RPM spec file (broken since out123 addition, thanks
+  to Srikanth Rao for noticing).
+- More out123_pause() in generic control mode, working around
+  bug 236. The coreaudio output needs to be more robust, though.
+- Do not undef MPG123_EXPORT in the headers, rather be prepared for it
+  being defined already. This fixes MSVC builds, broken since 1.23.0
+  (bug 239).
 
 1.23.6
 ------
