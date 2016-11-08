@@ -187,19 +187,34 @@ static void catch_fatal_pipe(void)
 }
 #endif
 
-/* oh, what a mess... */
-void next_track(void)
+static void skip_track(void)
 {
 	intflag = TRUE;
 	++skip_tracks;
 }
 
+void next_track(void)
+{
+	playlist_jump(+1);
+	skip_track();
+}
+
 void prev_track(void)
 {
-	if(pl.pos > 2) pl.pos -= 2;
-	else pl.pos = skip_tracks = 0;
+	playlist_jump(-1);
+	skip_track();
+}
 
-	next_track();
+void next_dir(void)
+{
+	playlist_next_dir();
+	skip_track();
+}
+
+void prev_dir(void)
+{
+	playlist_prev_dir();
+	skip_track();
 }
 
 void safe_exit(int code);
@@ -246,46 +261,6 @@ static void controlled_drain(void)
 	while(!intflag && out123_buffered(ao));
 	if(param.verbose)
 		fprintf(stderr, "\n");
-}
-
-/* Directory jumping based on comparing the directory part of the playlist
-   URLs. */
-int cmp_dir(const char* patha, const char* pathb)
-{
-	size_t dirlen[2];
-	dirlen[0] = dir_length(patha);
-	dirlen[1] = dir_length(pathb);
-	return (dirlen[0] < dirlen[1])
-	?	-1
-	:	( dirlen[0] > dirlen[1]
-		?	1
-		:	memcmp(patha, pathb, dirlen[0])
-		);
-}
-
-void next_dir(void)
-{
-	size_t npos = pl.pos ? pl.pos-1 : 0;
-	do { ++npos; }
-	while(npos < pl.fill && !cmp_dir(pl.list[npos-1].url, pl.list[npos].url));
-	pl.pos = npos;
-	next_track();
-}
-
-void prev_dir(void)
-{
-	size_t npos = pl.pos ? pl.pos-1 : 0;
-	/* 1. Find end of previous directory. */
-	if(npos && npos < pl.fill)
-	do { --npos; }
-	while(npos && !cmp_dir(pl.list[npos+1].url, pl.list[npos].url));
-	/* npos == the last track of previous directory */
-	/* 2. Find the first track of this directory */
-	if(npos < pl.fill)
-	while(npos && !cmp_dir(pl.list[npos-1].url, pl.list[npos].url))
-	{ --npos; }
-	pl.pos = npos;
-	next_track();
 }
 
 void safe_exit(int code)
@@ -480,6 +455,7 @@ static void list_output_modules(char *arg)
 		printf("\n");
 		printf("Available modules\n");
 		printf("-----------------\n");
+		out123_param_string(lao, OUT123_BINDIR, binpath);
 		out123_param_int(lao, OUT123_VERBOSE, param.verbose);
 		if(param.quiet)
 			out123_param_int(lao, OUT123_FLAGS, OUT123_QUIET);
@@ -1077,13 +1053,8 @@ int main(int sys_argc, char ** sys_argv)
 	httpdata_init(&htd);
 
 #if !defined(WIN32) && !defined(GENERIC)
-	if (param.remote)
-	{
-		param.verbose = 0;
+	if(param.remote && !param.verbose)
 		param.quiet = 1;
-		param.flags |= MPG123_QUIET;
-		param.output_flags |= OUT123_QUIET;
-	}
 #endif
 
 	/* Set the frame parameters from command line options */
@@ -1202,6 +1173,7 @@ int main(int sys_argc, char ** sys_argv)
 	|| out123_param_int(ao, OUT123_GAIN, param.gain)
 	|| out123_param_int(ao, OUT123_VERBOSE, param.verbose)
 	|| out123_param_string(ao, OUT123_NAME, param.name)
+	|| out123_param_string(ao, OUT123_BINDIR, binpath)
 	|| out123_param_float(ao, OUT123_DEVICEBUFFER, param.device_buffer)
 	)
 	{
@@ -1315,6 +1287,10 @@ int main(int sys_argc, char ** sys_argv)
 
 		if (!param.quiet)
 		{
+			size_t plpos;
+			size_t plfill;
+			long plloop;
+			plpos = playlist_pos(&plfill, &plloop);
 			if(newdir) fprintf(stderr, "Directory: %s\n", dirname);
 
 #ifdef HAVE_TERMIOS
@@ -1322,8 +1298,16 @@ int main(int sys_argc, char ** sys_argv)
 		if(param.term_ctrl) term_hint();
 #endif
 
-
-			fprintf(stderr, "Playing MPEG stream %lu of %lu: %s ...\n", (unsigned long)pl.pos, (unsigned long)pl.fill, filename);
+			if(param.verbose)
+			{
+				if(plloop < 0)
+					fprintf(stderr, "Repeating endlessly.\n");
+				else if(plloop > 1)
+					fprintf( stderr, "Repeating %ld %s.\n"
+					,	plloop-1, plloop > 2 ? "times" : "time" );
+			}
+			fprintf( stderr, "Playing MPEG stream %"SIZE_P" of %"SIZE_P": %s ...\n"
+			,	(size_p)plpos, (size_p)plfill, filename );
 			if(htd.icy_name.fill) fprintf(stderr, "ICY-NAME: %s\n", htd.icy_name.p);
 			if(htd.icy_url.fill)  fprintf(stderr, "ICY-URL: %s\n",  htd.icy_url.p);
 		}
@@ -1383,7 +1367,7 @@ int main(int sys_argc, char ** sys_argv)
 			}
 			if(!fresh && param.verbose)
 			{
-				if(param.verbose > 1 || !(framenum & 0x7)) print_stat(mh,0,ao);
+				if(param.verbose > 1 || !(framenum & 0x7)) print_stat(mh,0,ao,1);
 			}
 #ifdef HAVE_TERMIOS
 			if(!param.term_ctrl) continue;
@@ -1393,7 +1377,7 @@ int main(int sys_argc, char ** sys_argv)
 
 	if(!param.smooth && !intflag)
 		controlled_drain();
-	if(param.verbose) print_stat(mh,0,ao); 
+	if(param.verbose) print_stat(mh,0,ao,0);
 
 	if(!param.quiet)
 	{
@@ -1647,5 +1631,6 @@ static void give_version(char* arg)
 
 void continue_msg(const char *name)
 {
-		fprintf(aux_out, "\n[%s] track %"SIZE_P" frame %"OFF_P"\n", name,  (size_p)pl.pos, (off_p)framenum);
+	fprintf( aux_out, "\n[%s] track %"SIZE_P" frame %"OFF_P"\n", name
+	,	(size_p)playlist_pos(NULL, NULL), (off_p)framenum );
 }
