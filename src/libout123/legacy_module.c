@@ -16,10 +16,10 @@ extern mpg123_module_t mpg123_output_module_info;
 
 /* Open a module */
 mpg123_module_t*
-open_module(const char* type, const char* name, int verbose)
+open_module(const char* type, const char* name, int verbose, const char* bindir)
 {
 	mpg123_module_t *mod = NULL;
-	
+
 	/* Select the module info structure, based on the desired type */
 	if (strcmp(type, "output")==0) {
 		mod = &mpg123_output_module_info;
@@ -32,7 +32,7 @@ open_module(const char* type, const char* name, int verbose)
 			error1("Unable to open module type '%s'.", type);
 		return NULL;
 	}
-	
+
 	/* Check the module compiled in is the module requested */
 	if (strcmp(name, mod->name)!=0) {
 		if(verbose >= 0)
@@ -43,7 +43,7 @@ open_module(const char* type, const char* name, int verbose)
 		}
 		return NULL;
 	}
-	
+
 	/* Debugging info */
 	debug1("Details of static module type '%s':", type);
 	debug1("  api_version=%d", mod->api_version);
@@ -59,14 +59,14 @@ open_module(const char* type, const char* name, int verbose)
 void close_module(mpg123_module_t* module, int verbose)
 {
 	debug("close_module()");
-	
+
 	/* Module was never really 'loaded', so nothing to do here. */
 }
 
 
-int list_modules(const char *type, char ***names, char ***descr, int verbose)
+int list_modules(const char *type, char ***names, char ***descr, int verbose, const char* bindir)
 {
-	debug("list_modules()" );
+	debug("list_modules()");
 
 	*names = NULL;
 	*descr = NULL;
@@ -91,5 +91,3 @@ int list_modules(const char *type, char ***names, char ***descr, int verbose)
 		return -1;
 	}
 }
-
-

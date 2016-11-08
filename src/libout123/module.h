@@ -27,7 +27,7 @@ typedef struct mpg123_module_struct {
 	const char* name;							/* short name of the module */
 	const char* description;					/* description of what the module does */
 	const char* revision;						/* source code revision */
-	
+
 #ifdef HAVE_LTDL
 	lt_dlhandle handle;							/* ltdl handle - set by open_module */
 #else
@@ -43,10 +43,8 @@ typedef struct mpg123_module_struct {
 
 /* ------ Declarations from "module.c" ------ */
 
-mpg123_module_t* open_module( const char* type, const char* name, int verbose
-,	const char* bindir );
+mpg123_module_t* open_module( const char* type, const char* name, int verbose, const char* bindir );
 void close_module(mpg123_module_t* module, int verbose);
-int list_modules( const char *type, char ***names, char ***descr, int verbose
-,	const char* bindir );
+int list_modules( const char *type, char ***names, char ***descr, int verbose, const char* bindir );
 
 #endif
