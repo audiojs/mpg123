@@ -1,5 +1,149 @@
-1.24.0
+1.26.0
 ------
+- Default build with proper integer rounding (--enable-int-quality) now.
+- mpg123:
+-- Print out MPEG header info for each frame for mpg123 -vvvv.
+-- Added --no-visual to disable cursor/inverse video games explicitly.
+-- Also disable cursor/video games for empty TERM (not just unset and dumb).
+- libout123:
+-- Removed change of effective user ID in the WAV/RAW/AU/CDR writer.
+   This was intended as a safeguard to avoid creating files with root
+   priviledges. But: Other output modules still allowed root-level
+   access to various devices and files, so it was never safe to do
+   something awful like installing mpg123 with suid bit or configure
+   sudo to allow users to run mpg123 with arbitrary arguments.
+   You should treat out123_open just like the regular open(): You can
+   write to any file/device depending on your permissions.
+- out123: Changed output of --test-encodings to list of encoding names
+  instead of raw bitmask value.
+- libout123: Added hex and txt (plain text) printout.
+- libmpg123:
+-- Add special value 0 for all standard rates in mpg123_format() and
+   mpg123_fmt().
+-- Fix changing of decoder (and output format along with that) after stream
+   opening. This was never recommened and only now should work at all.
+-- Also mpg123_decode_frame() now sets return buffer to NULL and returned byte
+   count to zero in case of MPG123_NEED_MORE (or any other early abort).
+-- Added mpg123_set_moreinfo() to support the Lame project's frame analyzer,
+   disabled by ./configure --disable-moreinfo.
+-- Added optional storage and retrieval of raw ID3 data.
+-- Fix skipping of ID3v2 footers (too much was attempted to be skipped). This
+   is of not much practical consequence as a tag with footer would appear on
+   the end of files anyway and files with ID3v2 tags at the end seem to be
+   rather rare.
+-- Add mpg123_new_string() and mpg123_delete_string() to avoid confusion
+   about what mpg123_init_string() and mpg123_free_string() do.
+-- Improve layer III frame parsing/error reporting for bad part2_3_length.
+-- Do not remove CRC bits twice from possibly available bit reservoir.
+   This move needed recomputation of the layer3is reference data for 8 and
+   24 kHz. Old mpg123 is _wrong_ in the first few frames.
+-- Generally more tight control and early bail out on reading bits of
+   frame data for all layers. This reduces the count of error messages
+   on badly damaged files a lot and feels a lot safer, too. Note that
+   we already silently returned zero bytes instead of actually over-reading
+   the frame buffer before, but now it happens with diagnostics and more
+   checks before it may happen.
+-- Optionally enforce output endianess (big/little) away from native.
+
+1.25.7
+------
+- mpg123:
+-- Do not play with cursor and inverse video for progress bar
+   when TERM=dumb.
+-- Fix parsing of host port for numerical IPv6 addresses (just did
+   not work before, only for textual host names).
+- libmpg123:
+-- Proper fix for the xrpnt overflow problems by correctly
+   initialising certain tables for MPEG 2.x layer III. The checks that
+   catch the resulting overflow are still in place, but likely superfluous
+   now. Note that this means certain valid files would have been misdecoded
+   before, if anyone actually produced them. Thanks to Robert Hegemann for
+   the fix!
+-- Silently handle granules with part2_3_length == 0, but
+   scalefac_compress != 0 (ignore the latter).
+
+1.25.6
+------
+- Hotfix for bug 255: Overflow reading frame data bits in layer II decoding.
+  Now, all-zero data is returned if the frame data is exhausted. This might
+  have a slight impact on performance, but not easily measurable so far.
+
+1.25.5
+------
+- Avoid another buffer read overflow in the ID3 parser on 32 bit platforms
+  (bug 254).
+
+1.25.4
+------
+- Better configure checks for i?86-apple-darwin (bug 253).
+- libmpg123:
+-- Prevent harmless call to memcpy(NULL, NULL, 0).
+-- More early checking of ID3v2 encoding values to avoid bogus text being
+   stored.
+
+1.25.3
+------
+- libmpg123:
+-- Better checks for xrpnt overflow in III_dequantize_sample() before each
+   use, avoiding false positives and catching cases that were rendered
+   harmless by alignment-enlarged buffers.
+
+1.25.2
+------
+- libmpg123:
+-- Extend pow tables for layer III to properly handle files with i-stereo and
+   5-bit scalefactors. Never observed them for real, just as fuzzed input to
+   trigger the read overflow. Note: This one goes on record as CVE-2017-11126,
+   calling remote denial of service. While the accesses are out of bounds for
+   the pow tables, they still are safely within libmpg123's memory (other
+   static tables). Just wrong values are used for computation, no actual crash
+   unless you use something like GCC's AddressSanitizer, nor any information
+   disclosure.
+-- Avoid left-shifts of negative integers in layer I decoding.
+
+1.25.1: Hot Fuzz
+-------
+- libmpg123:
+-- Avoid memset(NULL, 0, 0) to calm down the paranoid.
+-- Fix bug 252, invalid read of size 1 in ID3v2 parser due to forgotten
+   offset from the frame flag bytes (unnoticed in practice for a long
+   time). Fuzzers are in the house again. This one got CVE-2017-10683.
+-- Avoid a mostly harmless conditional jump depending on uninitialised
+   fr->lay in compute_bpf() (mpg123_position()) when track is not ready yet.
+-- Fix undefined shifts on signed long mask in layer3.c (worked in practice,
+   never right in theory). Code might be a bit faster now, even.
+   Thanks to Agostino Sarubbo for reporting.
+
+1.25.0: MP3 now patent-free worldwide!
+-------
+- Silence test for artsc-config if it is not there.
+- Make sure -static-libgcc from LDFLAGS gets through libtool,
+  fixing 32 bit Windows builds (depend on libgcc DLL otherwise).
+- Fix build with non-GNU make by using plain rm -f instead of silly $(RM)
+  in libout123/modules makefile fragment.
+- Make build work on iOS, including coreaudio backend.
+- libmpg123:
+-- Finally provide position-independent code for x86 with assembly
+   optimisations.The textrels are gone thanks to Won Kyu Park and Taihei Momma.
+-- Clarify some license language in files descending from the original MMX
+   optimisation.
+-- Fix return value overflow check for MPG123_BUFFERFILL.
+-- Introduced mpg123_getformat2() to enable the FORMAT command
+   for the generic control not stealing MPG123_NEW_FORMAT from the main
+   playback loop. The sequence LOADPAUSED-FORMAT-PAUSE (play) is supposed
+   to work now.
+-- Enable aarch64 optimisations on *BSD by default, too. You can always
+   override that stupid OS whitelist using --with-optimization, anyway.
+-- Use of the i486 decoder is now discouraged more prominently, in configure
+   output.
+- out123: Fix stupid crash with verbose mode and tone generation (print
+  the string if the pointer is non-null, not if it is null).
+- libout123: More consistent error messages for dynamic and legacy
+  (built-in) modules. Namely, you get a hint how if you choose a different
+  module than the built-in ones for a static libout123.
+
+1.24.0:
+-------
 - Avoid repeating genre in metadata printout for specifications like
   (144)Thrash Metal.
 - In remote control mode, only enforce --quiet if no verbosity was required.
@@ -25,9 +169,21 @@
 - Try not to pollute the terminal buffer with old progress bars in inverse
   video. Only the currently live one shall be seen. That one is pretty. The
   others are not.
+- Using plain dlopen()/LoadLibrary() for opening modules instead of libltdl.
+  This also means that --with-module-suffix is gone in configure.
+- Windows builds only work when Unicode support is there (older than Windows
+  2000/XP will definitely not work anymore).
+- The out123 tool now features tone generation, with a mix of differing
+  wave patterns. Makes sense to be able to test the audio output by itself,
+  and it's fun. See --wave-freq and related parameters.
 - libmpg123 version 43:
 -- Add flags MPG123_NO_PEEK_END and MPG123_FORCE_SEEKABLE, as suggested
    by Bent Bisballe Nyeng.
+-- Build fix for MSVC (consistent definition of ssize_t, spotted by manx,
+   bug 243).
+-- Build fix for --with-cpu=ppc_nofpu (thanks to Michael Kostylev, bug 244).
+-- Add asm optimized MSVC++ Win32|x64 and UWP|x64 builds
+-- Remove old, broken MSVC++ builds
 - libout123 version 2:
 -- Added OUT123_BINDIR.
 -- New search order for output plugin directory: MPG123_MODDIR, or (relative

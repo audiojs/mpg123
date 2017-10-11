@@ -14,6 +14,8 @@ src_libout123_libout123_la_SOURCES = \
   src/libout123/out123_int.h \
   src/libout123/wav.c \
   src/libout123/wav.h \
+  src/libout123/hextxt.c \
+  src/libout123/hextxt.h \
   src/libout123/wavhead.h
 
 if BUILD_BUFFER
@@ -41,7 +43,6 @@ src_libout123_libmodule_la_SOURCES = src/libout123/module.h
 if HAVE_MODULES
 
 src_libout123_libmodule_la_SOURCES += src/libout123/module.c
-src_libout123_libout123_la_LIBADD  += -lltdl
 
 else
 

@@ -42,6 +42,9 @@ int split_url(mpg123_string *url, mpg123_string *auth, mpg123_string *host, mpg1
 {
 	size_t pos  = 0; /* current position in input URL */
 	size_t pos2 = 0; /* another position in input URL */
+#ifdef IPV6
+	size_t pos3 = 0; /* yet another (for IPv6 port)   */
+#endif
 	char *part  = NULL; /* a part of url we work on */
 	int ret = TRUE; /* return code */
 	/* Zeroing the output strings; not freeing to avoid unnecessary mallocs. */
@@ -92,16 +95,22 @@ int split_url(mpg123_string *url, mpg123_string *auth, mpg123_string *host, mpg1
 		if( (part = strchr(url->p+pos,']')) != NULL)
 		{
 			pos2 = part-url->p;
+			pos3 = pos2+1; /* : after ] */
 		}
 		else { error("Malformed IPv6 URL!"); return FALSE; }
 	}
 	else
+	{
 #endif
 	for(pos2=pos; pos2 < url->fill-1; ++pos2)
 	{
 		char a = url->p[pos2];
 		if( a == ':' || a == '/') break;
 	}
+#ifdef IPV6
+		pos3 = pos2;
+	}
+#endif
 	/* At pos2 there is now either a delimiter or the end. */
 debug4("hostname between %lu and %lu, %lu chars of %s", (unsigned long)pos, (unsigned long)pos2, (unsigned long)(pos2-pos), url->p + pos);
 	if(host != NULL && !mpg123_set_substring(host, url->p, pos, pos2-pos))
@@ -109,7 +118,11 @@ debug4("hostname between %lu and %lu, %lu chars of %s", (unsigned long)pos, (uns
 		error("Cannot set host string (out of mem?).");
 		return FALSE;
 	}
+#ifdef IPV6
+	pos = pos3; /* Look after ], if present. */
+#else
 	pos = pos2;
+#endif
 
 	/* Now for the port... */
 	if(url->p[pos] == ':')
@@ -220,7 +233,7 @@ static int timeout_connect(int sockfd, const struct sockaddr *serv_addr, socklen
 	{
 		if(connect(sockfd, serv_addr, addrlen))
 		{
-			error1("connecton failed: %s", strerror(errno));
+			error1("connection failed: %s", strerror(errno));
 			return -1;
 		}
 		else return 0; /* _good_ */

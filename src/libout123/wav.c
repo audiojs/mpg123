@@ -167,12 +167,6 @@ static int open_file(struct wavdata *wdat, char *filename)
 	debug2("open_file(%p, %s)", (void*)wdat, filename ? filename : "<nil>");
 	if(!wdat)
 		return -1;
-#if defined(HAVE_SETUID) && defined(HAVE_GETUID)
-	/* TODO: get rid of that and settle that you rather not install mpg123
-	   setuid-root. Why should you?
-	   In case this program is setuid, create files owned by original user. */
-	setuid(getuid());
-#endif
 	if(!filename || !strcmp("-",filename) || !strcmp("", filename))
 	{
 		wdat->wavfp = stdout;
@@ -558,7 +552,8 @@ int wav_write(out123_handle *ao, unsigned char *buf, int len)
 
 	if(wdat->datalen == 0 && write_header(ao) < 0)
 		return -1;
-
+// TODO: offer way to hand in big-endian data already, as libmpg123
+// can enforce endianess now
 	/* Endianess conversion. Not fancy / optimized. */
 	if(wdat->flipendian)
 	{

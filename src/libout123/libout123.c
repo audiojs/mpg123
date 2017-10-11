@@ -8,6 +8,7 @@
 
 #include "out123_int.h"
 #include "wav.h"
+#include "hextxt.h"
 #ifndef NOXFERMEM
 #include "buffer.h"
 static int have_buffer(out123_handle *ao)
@@ -27,12 +28,12 @@ static int have_buffer(out123_handle *ao)
 
 static const char *default_name = "out123";
 
-static int modverbose(out123_handle *ao)
+static int modverbose(out123_handle *ao, int final)
 {
 	debug3("modverbose: %x %x %x"
 	,	(unsigned)ao->flags, (unsigned)ao->auxflags, (unsigned)OUT123_QUIET);
 	return AOQUIET
-	?	-1
+	?	(final ? 0 : -1)
 	:	ao->verbose;
 }
 
@@ -480,7 +481,7 @@ void attribute_align_arg out123_close(out123_handle *ao)
 		if(ao->deinit)
 			ao->deinit(ao);
 		if(ao->module)
-			close_module(ao->module, modverbose(ao));
+			close_module(ao->module, modverbose(ao, 0));
 		/* Null module methods and pointer. */
 		out123_clear_module(ao);
 	}
@@ -822,6 +823,28 @@ static int open_fake_module(out123_handle *ao, const char *driver)
 		ao->drain = wav_drain;
 		ao->close = au_close;
 	}
+	else
+	if(!strcmp("hex", driver))
+	{
+		ao->propflags &= ~OUT123_PROP_LIVE;
+		ao->open  = hex_open;
+		ao->get_formats = hex_formats;
+		ao->write = hex_write;
+		ao->flush = builtin_nothing;
+		ao->drain = hextxt_drain;
+		ao->close = hextxt_close;
+	}
+	else
+	if(!strcmp("txt", driver))
+	{
+		ao->propflags &= ~OUT123_PROP_LIVE;
+		ao->open  = txt_open;
+		ao->get_formats = txt_formats;
+		ao->write = txt_write;
+		ao->flush = builtin_nothing;
+		ao->drain = hextxt_drain;
+		ao->close = hextxt_close;
+	}
 	else return OUT123_ERR;
 
 	return OUT123_OK;
@@ -844,7 +867,7 @@ static void check_output_module( out123_handle *ao
 		return;
 
 	/* Open the module, initial check for availability+libraries. */
-	ao->module = open_module( "output", name, modverbose(ao), ao->bindir);
+	ao->module = open_module( "output", name, modverbose(ao, final), ao->bindir);
 	if(!ao->module)
 		return;
 	/* Check if module supports output */
@@ -885,7 +908,7 @@ static void check_output_module( out123_handle *ao
 
 check_output_module_cleanup:
 	/* Only if module did not check out we get to clean up here. */
-	close_module(ao->module, modverbose(ao));
+	close_module(ao->module, modverbose(ao, final));
 	out123_clear_module(ao);
 	return;
 }
@@ -918,10 +941,14 @@ out123_drivers(out123_handle *ao, char ***names, char ***descr)
 	/* Wrap the call to isolate the lower levels from the user not being
 	   interested in both lists. it's a bit wasteful, but the code looks
 	   ugly enough already down there. */
-	count = list_modules("output", &tmpnames, &tmpdescr, modverbose(ao), ao->bindir);
+	count = list_modules("output", &tmpnames, &tmpdescr, modverbose(ao, 0), ao->bindir);
 	debug1("list_modules()=%i", count);
 	if(count < 0)
-		return count;
+	{
+		if(!AOQUIET)
+			error("Dynamic module search failed.");
+		count = 0;
+	}
 
 	if(
 		stringlists_add( &tmpnames, &tmpdescr
@@ -934,6 +961,10 @@ out123_drivers(out123_handle *ao, char ***names, char ***descr)
 		,	"au", "Sun AU file (builtin)", &count )
 	||	stringlists_add( &tmpnames, &tmpdescr
 		,	"test", "output into the void (builtin)", &count )
+	||	stringlists_add( &tmpnames, &tmpdescr
+		,	"hex", "interleaved hex printout (builtin)", &count )
+	||	stringlists_add( &tmpnames, &tmpdescr
+		,	"txt", "plain text printout, a column per channel (builtin)", &count )
 	)
 		if(!AOQUIET)
 			error("OOM");
